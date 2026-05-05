@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>10. Sınıf Fizik - Gelişmiş Devre Laboratuvarı</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #1a1a2e; color: white; text-align: center; margin: 0; padding: 20px; }
+        .main-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; }
+        .control-panel { background-color: #16213e; padding: 20px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); width: 320px; text-align: left; max-height: 85vh; overflow-y: auto; }
+        .simulation-area { background-color: #0f3460; padding: 20px; border-radius: 15px; flex-grow: 1; max-width: 700px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .section-title { color: #e94560; border-bottom: 2px solid #e94560; padding-bottom: 5px; margin-top: 15px; margin-bottom: 10px; font-size: 16px; }
+        input[type="number"], select { width: calc(100% - 20px); padding: 8px; margin: 5px 0 10px; border-radius: 5px; border: none; font-size: 14px; background-color: #f1f2f6; }
+        canvas { background-color: #2c3e50; border-radius: 10px; border: 3px solid #e94560; width: 100%; max-width: 600px; }
+        
+        /* Şalter */
+        .switch-container { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; font-weight: bold; color: #00d2d3;}
+        .switch { position: relative; display: inline-block; width: 50px; height: 26px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #e74c3c; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #2ecc71; }
+        input:checked + .slider:before { transform: translateX(24px); }
+        
+        .result-card { background-color: #1a1a2e; border: 1px solid #00d2d3; padding: 10px; border-radius: 8px; margin-top: 10px; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+    <h1>🔬 İleri Seviye Fizik Laboratuvarı: Elektrik ve Manyetizma</h1>
+
+    <div class="main-container">
+        <div class="control-panel">
+            <div class="switch-container">
+                Şalter (Akım):
+                <label class="switch">
+                    <input type="checkbox" id="anahtar" onchange="cizVeHesapla()">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            
+            <div class="switch-container">
+                Ölçüm Cihazlarını Göster:
+                <label class="switch">
+                    <input type="checkbox" id="olcum_goster" checked onchange="cizVeHesapla()">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div class="section-title">Pil (Güç Kaynağı) Ayarları</div>
+            <label>Tek Bir Pilin Voltajı (V):</label>
+            <input type="number" id="pil_v" value="12" min="1" oninput="cizVeHesapla()">
+            <label>Pil Sayısı:</label>
+            <input type="number" id="pil_adet" value="2" min="1" max="5" oninput="cizVeHesapla()">
+            <label>Pillerin Bağlanması:</label>
+            <select id="pil_baglanti" onchange="cizVeHesapla()">
+                <option value="seri">Seri Bağlama (Voltaj Katlanır)</option>
+                <option value="paralel">Paralel Bağlama (Voltaj Sabit, Ömür Uzar)</option>
+            </select>
+
+            <div class="section-title">Ampul (Direnç) Ayarları</div>
+            <label>1. Ampul Direnci (R1) Ω:</label>
+            <input type="number" id="r1" value="4" min="1" oninput="cizVeHesapla()">
+            <label>2. Ampul Direnci (R2) Ω:</label>
+            <input type="number" id="r2" value="4" min="1" oninput="cizVeHesapla()">
+            <label>Ampullerin Bağlanması:</label>
+            <select id="baglanti" onchange="cizVeHesapla()">
+                <option value="seri">Seri Bağlama</option>
+                <option value="paralel">Paralel Bağlama</option>
+            </select>
+
+            <div class="result-card" id="sonuc">
+                </div>
+        </div>
+
+        <div class="simulation-area">
+            <canvas id="devreCanvas" width="600" height="400"></canvas>
+            <p style="color: #bdc3c7; font-size: 13px; margin-top:10px;">Ampermetre (A) seriye, Voltmetre (V) paralele bağlanır.</p>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("devreCanvas");
+        const ctx = canvas.getContext("2d");
+
+        function cizVeHesapla() {
+            let anahtarKapali = document.getElementById("anahtar").checked;
+            let gosterMeters = document.getElementById("olcum_goster").checked;
+            
+            // Pil hesaplamaları
+            let V_tek = parseFloat(document.getElementById("pil_v").value) || 0;
+            let pil_adet = parseInt(document.getElementById("pil_adet").value) || 1;
+            let pil_baglanti = document.getElementById("pil_baglanti").value;
+            
+            let V_toplam = (pil_baglanti === "seri") ? (V_tek * pil_adet) : V_tek;
+
+            // Direnç hesaplamaları
+            let R1 = parseFloat(document.getElementById("r1").value) || 1;
+            let R2 = parseFloat(document.getElementById("r2").value) || 1;
+            let baglanti = document.getElementById("baglanti").value;
+
+            let Res = 0, I_ana = 0, I1 = 0, I2 = 0, V1 = 0, V2 = 0;
+
+            if (baglanti === "seri") {
+                Res = R1 + R2;
+                if (anahtarKapali) {
+                    I_ana = V_toplam / Res;
+                    I1 = I_ana; I2 = I_ana;
+                    V1 = I1 * R1; V2 = I2 * R2;
+                }
+            } else { // Paralel
+                Res = (R1 * R2) / (R1 + R2);
+                if (anahtarKapali) {
+                    I_ana = V_toplam / Res;
+                    I1 = V_toplam / R1; I2 = V_toplam / R2;
+                    V1 = V_toplam; V2 = V_toplam;
+                }
+            }
+
+            // Arayüzü güncelle
+            document.getElementById("sonuc").innerHTML = `
+                Toplam Voltaj: <strong style="color:#f1c40f;">${V_toplam.toFixed(2)} V</strong> <br>
+                Eşdeğer Direnç (Reş): <strong style="color:#00d2d3;">${Res.toFixed(2)} Ω</strong> <hr style="border:0.5px solid #333;">
+                Ana Akım (Ampermetre): <strong>${I_ana.toFixed(2)} A</strong> <br>
+                R1 Voltmetresi: <strong>${V1.toFixed(2)} V</strong> <br>
+                R2 Voltmetresi: <strong>${V2.toFixed(2)} V</strong>
+            `;
+
+            drawCircuit(baglanti, R1, R2, I1, I2, V1, V2, I_ana, V_toplam, anahtarKapali, pil_adet, pil_baglanti, gosterMeters);
+        }
+
+        function drawCircuit(type, r1Val, r2Val, i1, i2, v1, v2, i_ana, v_toplam, isClosed, pilAdet, pilBaglanti, showMeters) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = "#ecf0f1"; ctx.lineWidth = 4; ctx.beginPath();
+
+            // Ana Çerçeve Kabloları
+            ctx.moveTo(100, 250); ctx.lineTo(100, 100); ctx.lineTo(200, 100);
+            ctx.moveTo(100, 250); ctx.lineTo(100, 350); ctx.lineTo(500, 350);
+            ctx.stroke();
+
+            // Batarya Grubu Çizimi
+            ctx.fillStyle = "white"; ctx.font = "14px Arial";
+            ctx.fillText(`Kaynak: ${v_toplam}V`, 20, 220);
+            ctx.fillText(`(${pilAdet} Pil - ${pilBaglanti})`, 10, 240);
+
+            if (pilBaglanti === "seri") {
+                // Seri pilleri yan yana çizmek yerine sembolik ortada çiziyoruz
+                for(let i=0; i<Math.min(pilAdet, 3); i++) {
+                    let yOffset = 250 + (i * 20);
+                    ctx.fillStyle = "#e74c3c"; ctx.fillRect(80, yOffset - 5, 40, 6); // + Kutup
+                    ctx.fillStyle = "#3498db"; ctx.fillRect(90, yOffset + 5, 20, 6); // - Kutup
+                }
+            } else {
+                // Paralel piller
+                ctx.fillStyle = "#e74c3c"; ctx.fillRect(80, 250, 40, 10);
+                ctx.fillStyle = "#3498db"; ctx.fillRect(90, 265, 20, 10);
+            }
+
+            // Anahtar
+            ctx.beginPath(); ctx.moveTo(200, 100);
+            if (isClosed) { ctx.lineTo(260, 100); ctx.strokeStyle = "#2ecc71"; } 
+            else { ctx.lineTo(250, 70); ctx.strokeStyle = "#e74c3c"; }
+            ctx.stroke();
+            
+            // Ampermetre (Ana kolda)
+            ctx.beginPath(); ctx.strokeStyle = "#ecf0f1"; ctx.moveTo(260, 100); ctx.lineTo(320, 100); ctx.stroke();
+            if (showMeters) drawMeter(300, 100, "A", i_ana, "#e74c3c");
+
+            // Ampuller ve Voltmetreler
+            if (type === "seri") {
+                ctx.beginPath(); ctx.moveTo(320, 100); ctx.lineTo(500, 100); ctx.lineTo(500, 350); ctx.stroke();
+                
+                drawBulb(380, 100, "R1", i1);
+                drawBulb(460, 100, "R2", i2);
+
+                if (showMeters) {
+                    // R1 Voltmetresi (Paralel)
+                    ctx.beginPath(); ctx.lineWidth=2; ctx.strokeStyle="#3498db";
+                    ctx.moveTo(350, 100); ctx.lineTo(350, 50); ctx.lineTo(410, 50); ctx.lineTo(410, 100); ctx.stroke();
+                    drawMeter(380, 50, "V", v1, "#3498db");
+
+                    // R2 Voltmetresi (Paralel)
+                    ctx.beginPath(); ctx.moveTo(430, 100); ctx.lineTo(430, 50); ctx.lineTo(490, 50); ctx.lineTo(490, 100); ctx.stroke();
+                    drawMeter(460, 50, "V", v2, "#3498db");
+                }
+            } else { // Paralel
+                // Üst ve alt kollar
+                ctx.beginPath(); ctx.lineWidth=4; ctx.strokeStyle="#ecf0f1";
+                ctx.moveTo(320, 100); ctx.lineTo(320, 50); ctx.lineTo(500, 50); ctx.lineTo(500, 150); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(320, 100); ctx.lineTo(320, 150); ctx.lineTo(500, 150); ctx.lineTo(500, 350); ctx.stroke();
+                
+                drawBulb(410, 50, "R1", i1);
+                drawBulb(410, 150, "R2", i2);
+
+                if (showMeters) {
+                    // Ana paralel kol üzerine genel voltmetre
+                    ctx.beginPath(); ctx.lineWidth=2; ctx.strokeStyle="#3498db";
+                    ctx.moveTo(340, 50); ctx.lineTo(340, 150); ctx.stroke();
+                    drawMeter(340, 100, "V", v1, "#3498db"); // Paralelde V'ler eşittir
+                }
+            }
+        }
+
+        function drawMeter(x, y, type, val, color) {
+            ctx.fillStyle = "#2c3e50"; ctx.beginPath(); ctx.arc(x, y, 16, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.stroke();
+            ctx.fillStyle = "white"; ctx.font = "bold 14px Arial"; ctx.fillText(type, x - 5, y + 5);
+            
+            // Değer yazısı
+            ctx.fillStyle = color; ctx.font = "12px Arial";
+            ctx.fillText(val.toFixed(1) + type, x - 15, y - 22);
+        }
+
+        function drawBulb(x, y, label, current) {
+            let glow = Math.min(current * 10, 50);
+            let isOn = current > 0.01;
+
+            if (isOn) { ctx.shadowColor = "#f1c40f"; ctx.shadowBlur = glow; ctx.fillStyle = "#f1c40f"; } 
+            else { ctx.shadowBlur = 0; ctx.fillStyle = "#7f8c8d"; }
+
+            ctx.beginPath(); ctx.arc(x, y, 18, 0, Math.PI * 2); ctx.fill();
+            ctx.shadowBlur = 0; ctx.strokeStyle = isOn ? "#d35400" : "#2c3e50"; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(x - 8, y - 8); ctx.lineTo(x + 8, y + 8); ctx.moveTo(x + 8, y - 8); ctx.lineTo(x - 8, y + 8); ctx.stroke();
+            ctx.fillStyle = "white"; ctx.font = "12px Arial"; ctx.fillText(label, x - 10, y - 25);
+        }
+
+        cizVeHesapla(); // Başlangıçta çiz
+    </script>
+</body>
+</html>
